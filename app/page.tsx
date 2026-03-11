@@ -37,7 +37,7 @@ export default function Home() {
       setStep(1)
 
       try {
-        const response = await fetch("http://localhost:8000/chat", {
+        const response = await fetch("https://jiuyue-ai-beauty-advisor.onrender.com/chat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
