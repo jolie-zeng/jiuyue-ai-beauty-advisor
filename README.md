@@ -6,6 +6,10 @@
 
 *💡 提示：为获得最佳体验，请优先观看上方的高清实机演示视频。*
 
+
+> 🚀 **在线体验 (Live Demo)**: [https://jiuyue-ai-beauty-advisor.vercel.app/](https://jiuyue-ai-beauty-advisor.vercel.app/)
+> 
+> *⚠️ 提示：本项目前端部署于 Vercel 国际边缘节点，后端部署于 Render 云端。国内网络初次加载可能存在延迟或 DNS 阻断（建议开启全局代理访问）。若遇到网络问题，请优先观看上方的 1 分钟高清实机演示大片。*
 </div>
 
 <div align="center">
