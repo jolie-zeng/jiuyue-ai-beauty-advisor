@@ -115,9 +115,13 @@ async def chat_endpoint(request: Request):
 
    # === 路由分发 ===
     poster_path = None
-    official_pitch = "暂未提取到官方推荐话术"  # 🚀 1. 新增一个全局变量用来存话术
+    official_pitch = "暂未提取到官方推荐话术"  
+    safe_raw_terms = "未提取到"  # 🚀 新增：在这里初始化要写入 CSV 的标签字段
 
     if intent_type == '对比':
+        # 🚀 修复点 1：对比意图下，抓取【提及色号】
+        safe_raw_terms = " / ".join(intent_dict.get("提及色号", [])) or intent_dict.get("产品词", "未提取到")
+        
         mentioned_shades = intent_dict.get('提及色号', [])
         official_shade1 = recognizer.extract_shade(mentioned_shades[0]) if len(mentioned_shades) > 0 else "未知色号"
         official_shade2 = recognizer.extract_shade(mentioned_shades[1]) if len(mentioned_shades) > 1 else "未知色号"
@@ -135,14 +139,11 @@ async def chat_endpoint(request: Request):
         price2 = df_main[df_main['英文色号'] == official_shade2]['价格'].values[0] if (official_shade2 in df_main['英文色号'].values and '价格' in df_main.columns) else 270
         link2 = df_main[df_main['英文色号'] == official_shade2]['购买链接'].values[0] if (official_shade2 in df_main['英文色号'].values and '购买链接' in df_main.columns) else "#"
 
-        # 🚀 2. 动态从 Pandas 里提取这两支色号的官方话术！
         pitch1 = str(df_main[df_main['英文色号'] == official_shade1]['官方推荐话术'].values[0]) if (official_shade1 in df_main['英文色号'].values and '官方推荐话术' in df_main.columns) else "暂无官方档案"
         pitch2 = str(df_main[df_main['英文色号'] == official_shade2]['官方推荐话术'].values[0]) if (official_shade2 in df_main['英文色号'].values and '官方推荐话术' in df_main.columns) else "暂无官方档案"
         
-        # 将两支色号的话术拼在一起，准备存入日志
         official_pitch = f"✨ #{official_shade1}：{pitch1}\n💄 #{official_shade2}：{pitch2}"
 
-        # 🚀 把提取出的话术传给大模型生成函数
         shade1_info = {"色号": str(official_shade1), "系列": "对比系", "官方推荐话术": pitch1}
         shade2_info = {"色号": str(official_shade2), "系列": "对比系", "官方推荐话术": pitch2}
         final_text, poster_path = generate_comparison_response(user_input, shade1_info, shade2_info)
@@ -161,13 +162,30 @@ async def chat_endpoint(request: Request):
         response_data["workshop3"]["reply_text"] = final_text
 
     else:
+        # 🚀 修复点 2：推荐意图下，优先抓取【场景标签】同步到前端大盘
+        scene_tags = intent_dict.get("场景标签", [])
+        if scene_tags:
+            safe_raw_terms = " / ".join(scene_tags)
+        else:
+            safe_raw_terms = intent_dict.get("产品词", "未提取到")
+
         recommended_shades = get_best_shades(intent_dict, user_input, csv_path=CSV_PATH)
         final_text, poster_path = generate_final_response(user_input, recommended_shades)
         top2 = recommended_shades[:2] if recommended_shades else []
 
         if top2:
-            # 🚀 3. 推荐模式下，循环提取 top2 的官方话术
-            official_pitch = "\n".join([f"✨ #{s['色号']}：{str(s.get('官方推荐话术', '暂无官方档案'))}" for s in top2])
+            # 🚀 修复点 3：拿着推荐出来的色号，回溯主知识库 df_main，强制把官方话术揪出来！
+            official_pitch_lines = []
+            for s in top2:
+                shade_code = s.get('色号')
+                match_row = df_main[df_main['英文色号'] == shade_code]
+                if not match_row.empty and '官方推荐话术' in df_main.columns:
+                    pitch = str(match_row['官方推荐话术'].values[0])
+                else:
+                    pitch = "暂无官方档案"
+                official_pitch_lines.append(f"✨ #{shade_code}：{pitch}")
+            
+            official_pitch = "\n".join(official_pitch_lines)
 
             response_data["workshop2"]["top_matches"] = [{"name": f"#{s['色号']}", "score": 98 if i==0 else 85} for i, s in enumerate(top2)]
             response_data["workshop3"]["promoted"] = str(top2[0]['色号']) if top2[0].get('是否新品') else "常规召回"
@@ -183,6 +201,8 @@ async def chat_endpoint(request: Request):
             ]
             response_data["workshop3"]["reply_text"] = final_text
             final_shades_str = " / ".join(str(s["色号"]) for s in top2)
+
+    # 紧接着是原有的 poster_path 和写入 CSV 逻辑
 
     if poster_path and os.path.exists(poster_path):
         filename = os.path.basename(poster_path)
