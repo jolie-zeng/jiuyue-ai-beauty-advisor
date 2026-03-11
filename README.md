@@ -54,5 +54,5 @@
 ### 1. 环境准备
 ```bash
 # 克隆仓库
-git clone [[https://github.com/你的用户名/你的仓库名.git](https://github.com/你的用户名/你的仓库名.git](https://github.com/jolie-zeng/jiuyue-ai-beauty-advisor.git/jolie-zeng/jiuyue-ai-beauty-advisor.git))
-cd 你的仓库名
+git clone [[https://github.com/jolie-zeng/jiuyue-ai-beauty-advisor.git](https://github.com/jolie-zeng/jiuyue-ai-beauty-advisor.git]
+cd jiuyue-ai-beauty-advisor
