@@ -1,5 +1,11 @@
 # ✨ 玖月 AI Beauty Advisor | 零售级大模型美妆导购引擎
 
+[![Bilibili](https://img.shields.io/badge/Bilibili-点击观看_1分钟实机演示-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://b23.tv/JxBpw2n)
+
+*💡 提示：为获得最佳体验，请优先观看上方的高清实机演示视频。*
+
+
+
 <div align="center">
   <img src="public/architecture.png" alt="系统全链路架构图" width="800" />
   <p><em>▲ 基于双轨制路由的 AI 导购全链路可视化架构图</em></p>
