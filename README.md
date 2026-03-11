@@ -1,7 +1,7 @@
 # ✨ 玖月 AI Beauty Advisor | 零售级大模型美妆导购引擎
 
 <div align="center">
-  <img src="public/blueprint.png" alt="系统全链路架构图" width="800" />
+  <img src="public/architecture.png" alt="系统全链路架构图" width="800" />
   <p><em>▲ 基于双轨制路由的 AI 导购全链路可视化架构图</em></p>
 </div>
 
@@ -54,5 +54,5 @@
 ### 1. 环境准备
 ```bash
 # 克隆仓库
-git clone [https://github.com/你的用户名/你的仓库名.git](https://github.com/你的用户名/你的仓库名.git)
+git clone [[https://github.com/你的用户名/你的仓库名.git](https://github.com/你的用户名/你的仓库名.git](https://github.com/jolie-zeng/jiuyue-ai-beauty-advisor.git/jolie-zeng/jiuyue-ai-beauty-advisor.git))
 cd 你的仓库名
