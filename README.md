@@ -2,7 +2,7 @@
 
 <div align="center">
 
-[![Bilibili](https://img.shields.io/badge/Bilibili-点击观看_1分钟实机演示-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://b23.tv/JxBpw2n)
+[![Bilibili](https://img.shields.io/badge/Bilibili-点击观看_1分钟实机演示-00A1D6?style=for-the-badge&logo=bilibili&logoColor=white)](https://b23.tv/oeEBKsh)
 
 *💡 提示：为获得最佳体验，请优先观看上方的高清实机演示视频。*
 
