@@ -9,7 +9,10 @@
 
 > 🚀 **在线体验 (Live Demo)**: [https://jiuyue-ai-beauty-advisor.vercel.app/](https://jiuyue-ai-beauty-advisor.vercel.app/)
 > 
-> *⚠️ 提示：本项目前端部署于 Vercel 国际边缘节点，后端部署于 Render 云端。国内网络初次加载可能存在延迟或 DNS 阻断（建议开启全局代理访问）。若遇到网络问题，请优先观看上方的 1 分钟高清实机演示大片。*
+> 🔐 **系统门禁**：为保护底层大模型算力资产，本项目启用了邀测码机制。**欢迎各位 HR 或技术专家随时与我联系，获取您的专属 VIP 测试码！**
+> 
+> *⚠️提示：本项目采用国际前沿的 Vercel + Render 云端部署架构。国内网络初次访问 API 可能存在唤醒延迟。若遇网络阻断，强烈建议优先观看上方的高清实机演示大片。*
+
 </div>
 
 <div align="center">
