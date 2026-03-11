@@ -136,6 +136,9 @@ export function BEndDashboard() {
           <div className="space-y-4">
             {intentData.map((item: any, idx: number) => {
               const percentage = totalCalls === 0 ? 0 : Math.round((item.value / totalCalls) * 100)
+              // 🚀 核心修复：前端显式声明颜色，防止 Tailwind 引擎误删 CSS 样式
+              const barColor = item.name.includes("推荐") ? "bg-rose-500" : "bg-cyan-500"
+              
               return (
                 <div key={idx}>
                   <div className="flex justify-between text-xs font-semibold text-slate-600 mb-1.5">
@@ -143,7 +146,8 @@ export function BEndDashboard() {
                     <span className="font-mono bg-slate-100 px-1.5 py-0.5 rounded text-slate-600">{item.value} 次</span>
                   </div>
                   <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden shadow-inner">
-                    <div className={`h-full ${item.color} rounded-full`} style={{ width: `${percentage}%` }} />
+                    {/* 顺手加上了一个丝滑的加载动画 transition-all duration-1000 */}
+                    <div className={`h-full ${barColor} rounded-full transition-all duration-1000`} style={{ width: `${percentage}%` }} />
                   </div>
                 </div>
               )
