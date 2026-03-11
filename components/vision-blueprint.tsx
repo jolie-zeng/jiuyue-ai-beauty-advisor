@@ -137,11 +137,14 @@ export function VisionBlueprint() {
 
             {/* 外链行动按钮：展示源码与文档 */}
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a href="#" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors shadow-md hover:shadow-lg">
+              {/* 🚀 修改 1：填入你真实的 GitHub 仓库链接 */}
+              <a href="https://github.com/jolie-zeng/jiuyue-ai-beauty-advisor" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-slate-900 text-white rounded-xl font-medium hover:bg-slate-800 transition-colors shadow-md hover:shadow-lg">
                 <Github className="w-5 h-5" />
                 <span>查看完整源码 (GitHub)</span>
               </a>
-              <a href="#" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 hover:border-indigo-300 transition-colors shadow-sm hover:shadow-md">
+              
+              {/* 🚀 修改 2：指向我们在 GitHub 里即将创建的架构日记文档 */}
+              <a href="https://github.com/jolie-zeng/jiuyue-ai-beauty-advisor/blob/main/ARCHITECTURE.md" target="_blank" rel="noopener noreferrer" className="w-full sm:w-auto flex items-center justify-center gap-2 px-6 py-3 bg-white border border-slate-300 text-slate-700 rounded-xl font-medium hover:bg-slate-50 hover:border-indigo-300 transition-colors shadow-sm hover:shadow-md">
                 <BookOpen className="w-5 h-5 text-indigo-500" />
                 <span>阅读《从 0 到 1 架构日记》</span>
               </a>
