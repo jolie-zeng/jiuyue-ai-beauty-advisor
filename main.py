@@ -215,7 +215,6 @@ async def chat_endpoint(request: Request):
         history_path = "history_log.csv"
         file_exists = os.path.exists(history_path)
         
-        safe_raw_terms = " / ".join(intent_dict.get("提及色号", [])) or intent_dict.get("产品词", "未提取到")
         recs = response_data.get("workshop3", {}).get("final_recommendations", [])
         safe_final_shades = " / ".join([str(r.get("name_en", "")) for r in recs]) if recs else "无推荐"
         ai_reply = response_data.get("workshop3", {}).get("reply_text", "")
