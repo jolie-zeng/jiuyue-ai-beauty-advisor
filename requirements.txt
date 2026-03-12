@@ -1,8 +1,10 @@
 fastapi
 uvicorn
 pandas
-dashscope
 Pillow
 pydantic
-thefuzz
 python-dotenv
+openai
+dashscope
+thefuzz
+pypinyin
