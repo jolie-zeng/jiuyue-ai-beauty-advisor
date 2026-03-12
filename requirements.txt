@@ -5,4 +5,4 @@ dashscope
 Pillow
 pydantic
 thefuzz
-dotenv
+python-dotenv
