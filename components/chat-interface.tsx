@@ -20,6 +20,11 @@ interface ChatInterfaceProps {
   realData: any | null
 }
 
+// 🚀 核心修复 1：将环境变量判断提到最外层，让所有 fetch 都能共用！
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://jiuyue-ai-beauty-advisor.onrender.com' 
+  : 'http://localhost:8000';
+
 export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatInterfaceProps) {
   const [inputValue, setInputValue] = useState("")
   const [testCode, setTestCode] = useState("")
@@ -45,17 +50,18 @@ export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatI
 
   const [randomPrompts, setRandomPrompts] = useState<string[]>(["正在加载专属知识库...", "...", "..."])
 
+  // 🚀 核心修复 2：补全了丢失的 fetch 请求，并使用动态 URL
   const fetchDynamicPrompts = async () => {
     try {
-      // 🚀 智能判断环境：本地开发用 localhost，线上部署用 Render 链接
-      const API_BASE_URL = process.env.NODE_ENV === 'production' 
-        ? 'https://jiuyue-ai-beauty-advisor.onrender.com' 
-        : 'http://localhost:8000';
+      const res = await fetch(`${API_BASE_URL}/api/random-prompts?t=${Date.now()}`);
       if (res.ok) {
         const data = await res.json();
         setRandomPrompts(data.prompts);
+      } else {
+        throw new Error("网络请求失败");
       }
     } catch (error) {
+      console.error("Failed to fetch dynamic prompts:", error);
       setRandomPrompts(["早泥豆沙和奶油砖橘哪个好？", "适合素颜的唇釉推荐", "黄黑皮显白色号有哪些？"]); 
     }
   }
@@ -129,10 +135,11 @@ export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatI
     }
   }
 
+  // 🚀 核心修复 3：后台管理接口使用动态 URL
   const fetchAdminCodes = async () => {
     setIsAdminLoading(true);
     try {
-      const res = await fetch('${API_BASE_URL}/api/admin/codes');
+      const res = await fetch(`${API_BASE_URL}/api/admin/codes`);
       if (res.ok) {
         const data = await res.json();
         setAdminCodes(data);
@@ -143,10 +150,11 @@ export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatI
     setIsAdminLoading(false);
   }
 
+  // 🚀 核心修复 4：生成密码接口使用动态 URL
   const handleGenerateCodes = async () => {
     setIsAdminLoading(true);
     try {
-      const res = await fetch('${API_BASE_URL}/api/admin/generate', { method: "POST" });
+      const res = await fetch(`${API_BASE_URL}/api/admin/generate`, { method: "POST" });
       if (res.ok) {
         const data = await res.json();
         setAdminCodes(data.codes); 
@@ -162,7 +170,6 @@ export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatI
 
   return (
     <div className="flex flex-col h-full bg-slate-50 text-slate-800 font-sans relative">
-      {/* Header */}
       <div className="flex items-center gap-3 px-6 py-4 border-b border-slate-200 bg-white/80 backdrop-blur-md shadow-sm z-10">
         <div className="relative">
           <div className="w-10 h-10 rounded-full bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center shadow-sm">
@@ -176,7 +183,6 @@ export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatI
         </div>
       </div>
 
-      {/* Messages */}
       <div className="flex-1 overflow-auto px-6 py-6 custom-scrollbar" ref={scrollRef} id="chat-scroll-container">
         <div className="space-y-6 max-w-2xl mx-auto">
           {messages.map((message) => (
@@ -197,7 +203,6 @@ export function ChatInterface({ step, onTrigger, isProcessing, realData }: ChatI
         </div>
       </div>
 
-      {/* Input Area */}
       <div className="p-4 border-t border-slate-200 bg-white/80 backdrop-blur-md space-y-3 shadow-[0_-4px_20px_-15px_rgba(0,0,0,0.1)]">
         
         <div className="max-w-2xl mx-auto mb-2">
@@ -380,11 +385,19 @@ function MessageBubble({ message, realData }: { message: Message, realData: any 
               {recommendations.map((item: any, idx: number) => {
                 const imgUrl = item.image_url || item.imageUrl;
                 
-                // 🌟 数据字段动态映射
-                const colorName = item.色号 || item.name_en || 'None'; 
-                const name_cn = item.昵称 || item.name_cn || '暂无昵称'; 
-                const series = item.产品系列 || item.series || '经典系列'; 
-                const itemLink = (item.buy_link && String(item.buy_link).toLowerCase() !== "nan") ? item.buy_link : "#"; 
+                // 🌟 修复 5：补回终极安检机，防止出现 undefined 和 nan 报错
+                const getValidData = (primary: any, secondary: any, fallback: string) => {
+                  const val = primary || secondary;
+                  if (!val || String(val).toLowerCase() === "nan" || String(val).trim() === "") {
+                    return fallback;
+                  }
+                  return val;
+                };
+
+                const colorName = getValidData(item.name_en, item.色号, "未知色号");
+                const name_cn = getValidData(item.name_cn, item.昵称, "暂无昵称");
+                const series = getValidData(item.series, item.系列, "经典系列");
+                const itemLink = getValidData(item.buy_link, item.购买链接, "#");
 
                 return (
                   <div key={idx} className="flex-shrink-0 w-[200px] rounded-2xl overflow-hidden shadow-[0_2px_12px_rgba(0,0,0,0.06)] border border-gray-100 bg-white flex flex-col hover:shadow-lg transition-shadow duration-300 relative">
@@ -395,7 +408,6 @@ function MessageBubble({ message, realData }: { message: Message, realData: any 
                       </div>
                     )}
 
-                    {/* 🌟 调整 1：高度缩水。修改了 paddingTop 和 paddingBottom 为 pt-3 pb-2 */}
                     <div className="relative bg-[#F8F9FA] pt-3 pb-2 flex flex-col items-center">
                       <div className="w-[120px] h-24 rounded-xl border-[4px] border-white shadow-sm overflow-hidden flex items-center justify-center bg-white">
                         {imgUrl ? (
@@ -409,17 +421,11 @@ function MessageBubble({ message, realData }: { message: Message, realData: any 
                           <div className="w-full h-full bg-[#A05252]"></div> 
                         )}
                       </div>
-                      
-                      {/* 🌟 调整 2：彻底删除了“官方色号”四个小字 */}
                     </div>
 
-                    {/* 🌟 调整 3：减少留白间距。将外框 p-5 改为 p-3，将 gap-5 改为 gap-3 */}
                     <div className="p-3 flex flex-col gap-3">
                       <div className="flex items-center gap-3">
-                        {/* 🌟 调整 4：删除了左侧的大圆点色块 */}
-                        
                         <div className="flex flex-col overflow-hidden w-full">
-                          {/* 🌟 调整 5：将色号名字体缩小，从 text-lg 降级为 text-base */}
                           <span className="text-base font-black text-slate-800 truncate">
                             {colorName}
                           </span>
