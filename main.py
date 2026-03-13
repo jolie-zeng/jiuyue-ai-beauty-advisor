@@ -16,6 +16,18 @@ from llm_router import extract_user_intent
 from recommendation_engine import get_best_shades
 from response_generator import generate_final_response, generate_comparison_response
 from shade_recognizer import ShadeRecognizer
+from sqlalchemy import create_engine, text
+import os
+# ... (保留你原来的其他 import)
+
+# 🚀 数据库连接引擎初始化
+# 会优先读取环境变量 DATABASE_URL，如果在本地没有配，就 fallback 到 None（继续用本地文件）
+DB_URL = os.environ.get("DATABASE_URL")
+if DB_URL and DB_URL.startswith("postgres://"):
+    DB_URL = DB_URL.replace("postgres://", "postgresql://", 1)
+
+# 创建 SQLAlchemy 引擎
+engine = create_engine(DB_URL) if DB_URL else None
 
 load_dotenv()
 
@@ -62,25 +74,41 @@ recognizer = ShadeRecognizer(csv_path=CSV_PATH)
 CODES_FILE = "invite_codes.json"
 
 def get_codes():
-    """读取数据库，如果没有或者缺少管理员账号，自动补全"""
+    """读取密码本：优先读云端数据库，没有就读本地"""
+    if engine:
+        try:
+            df_codes = pd.read_sql("invite_codes", engine)
+            return dict(zip(df_codes['code'], df_codes['quota']))
+        except Exception:
+            # 如果云端还没建表，先初始化并保存到云端
+            initial_codes = {"ADMIN999": 100, "JIUYUE2026": 10}
+            save_codes(initial_codes)
+            return initial_codes
+            
+    # 如果没连数据库，退回到以前的本地 JSON 逻辑
     if not os.path.exists(CODES_FILE):
-        # 如果连文件都没有，直接初始化
         initial_codes = {"ADMIN999": 100, "JIUYUE2026": 10}
         save_codes(initial_codes)
         return initial_codes
-        
     with open(CODES_FILE, "r", encoding="utf-8") as f:
         codes = json.load(f)
-        
-    # 🌟 终极防弹衣：如果读到了旧账本，且里面没有 ADMIN999，强制给它补发 100 次额度！
     if "ADMIN999" not in codes:
         codes["ADMIN999"] = 100
-        save_codes(codes) # 把补发后的新账本重新保存
-        
+        save_codes(codes)
     return codes
 
 def save_codes(codes):
-    """保存剩余次数到本地硬盘"""
+    """保存密码本：优先写云端数据库"""
+    if engine:
+        try:
+            df_codes = pd.DataFrame(list(codes.items()), columns=['code', 'quota'])
+            # 🚀 if_exists='replace' 会自动建表并覆盖更新
+            df_codes.to_sql('invite_codes', engine, if_exists='replace', index=False)
+            return
+        except Exception as e:
+            print(f"⚠️ 云端密码本保存失败: {e}")
+            
+    # 退回本地逻辑
     with open(CODES_FILE, "w", encoding="utf-8") as f:
         json.dump(codes, f, ensure_ascii=False, indent=2)
 
@@ -251,33 +279,31 @@ async def chat_endpoint(request: Request):
         response_data["workshop3"]["poster_url"] = f"{base_url}/posters/{filename}"
 
     # ==========================================
-    # 终极闭环：带 RLHF 反哺的隐形埋点
+    # 终极闭环：云端/本地 隐形埋点
     # ==========================================
     try:
-        history_path = "history_log.csv"
-        file_exists = os.path.exists(history_path)
+        new_row = pd.DataFrame([{
+            "调用时间": datetime.now().isoformat(), 
+            "用户原话": user_input, 
+            "意图": intent_type, 
+            "提取的原始词": safe_raw_terms, 
+            "最终锁定的色号": safe_final_shades, 
+            "官方推荐话术": official_pitch,  
+            "机器人的回复": ai_reply,
+            "人工反馈": "未评级", 
+            "消耗的邀请码": invite_code
+        }])
         
-        recs = response_data.get("workshop3", {}).get("final_recommendations", [])
-        safe_final_shades = " / ".join([str(r.get("name_en", "")) for r in recs]) if recs else "无推荐"
-        ai_reply = response_data.get("workshop3", {}).get("reply_text", "")
-
-        with open(history_path, mode="a", newline="", encoding="utf-8-sig") as f:
-            writer = csv.writer(f)
-            if not file_exists:
-                writer.writerow(["调用时间", "用户原话", "意图", "提取的原始词", "最终锁定的色号", "官方推荐话术", "机器人的回复", "人工反馈", "消耗的邀请码"])
-            
-            writer.writerow([
-                datetime.now().isoformat(), 
-                user_input, 
-                intent_type, 
-                safe_raw_terms, 
-                safe_final_shades, 
-                official_pitch,  
-                ai_reply,
-                "未评级", 
-                invite_code
-            ])
-            print("✅ 隐形埋点写入成功！")
+        if engine:
+            # 🚀 云端模式：极速插入一行数据，自动建表！
+            new_row.to_sql('history_log', engine, if_exists='append', index=False)
+            print("✅ 云数据库埋点写入成功！")
+        else:
+            # 本地模式
+            history_path = "history_log.csv"
+            file_exists = os.path.exists(history_path)
+            new_row.to_csv(history_path, mode="a", header=not file_exists, index=False, encoding="utf-8-sig")
+            print("✅ 本地 CSV 埋点写入成功！")
     except Exception as e:
         print(f"⚠️ 写入埋点失败: {e}")
 
@@ -366,14 +392,25 @@ async def get_random_prompts():
 @app.get("/api/dashboard")
 async def get_dashboard_data():
     """B端数据大盘接口：带分类色号全量榜单与对话复盘"""
-    history_path = "history_log.csv"
-    if not os.path.exists(history_path):
-        return {"total_calls": 0, "intent_distribution": [], "word_cloud": [], "shade_ranking_rec": [], "shade_ranking_comp": [], "recent_records": []}
-
     try:
-        df = pd.read_csv(history_path, encoding="utf-8-sig").fillna("无")
+        # 🚀 1. 优先尝试从云端数据库读取数据
+        if engine:
+            try:
+                df = pd.read_sql("history_log", engine).fillna("无")
+            except Exception:
+                # 如果连上了数据库，但还没人聊过天（表还不存在），就返回空数据
+                return {"total_calls": 0, "intent_distribution": [], "word_cloud": [], "shade_ranking_rec": [], "shade_ranking_comp": [], "recent_records": []}
+        
+        # 🚀 2. 如果没有配置数据库，退回到读本地 CSV 的逻辑
+        else:
+            history_path = "history_log.csv"
+            if not os.path.exists(history_path):
+                return {"total_calls": 0, "intent_distribution": [], "word_cloud": [], "shade_ranking_rec": [], "shade_ranking_comp": [], "recent_records": []}
+            df = pd.read_csv(history_path, encoding="utf-8-sig").fillna("无")
+
         total_calls = len(df)
 
+        # 👇 -------- 下面的数据统计逻辑完全不需要动！照常运行 -------- 👇
         if "官方推荐话术" not in df.columns:
             df["官方推荐话术"] = "缺失基准数据"
 
@@ -427,12 +464,25 @@ class FeedbackRequest(BaseModel):
 
 @app.post("/api/feedback")
 async def submit_feedback(req: FeedbackRequest):
-    history_path = "history_log.csv"
+    """B端人工打标接口"""
     try:
-        df = pd.read_csv(history_path, encoding="utf-8-sig")
-        df.loc[df['调用时间'] == req.timestamp, '人工反馈'] = req.feedback
-        df.to_csv(history_path, index=False, encoding="utf-8-sig")
-        return {"success": True}
+        # 🚀 1. 优先尝试写入云端数据库
+        if engine:
+            # 使用 SQL 语句精准更新那一条记录的“人工反馈”状态
+            with engine.begin() as conn:
+                conn.execute(
+                    text("UPDATE history_log SET 人工反馈 = :fb WHERE 调用时间 = :ts"), 
+                    {"fb": req.feedback, "ts": req.timestamp}
+                )
+            return {"success": True}
+            
+        # 🚀 2. 退回到写本地 CSV 的逻辑
+        else:
+            history_path = "history_log.csv"
+            df = pd.read_csv(history_path, encoding="utf-8-sig")
+            df.loc[df['调用时间'] == req.timestamp, '人工反馈'] = req.feedback
+            df.to_csv(history_path, index=False, encoding="utf-8-sig")
+            return {"success": True}
     except Exception as e:
         return {"error": str(e)}
 
