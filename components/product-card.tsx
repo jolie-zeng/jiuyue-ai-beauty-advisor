@@ -48,7 +48,7 @@ export function ProductCard({
               className="w-12 h-12 rounded-full mb-2 shadow-inner border-2 border-white/80"
               style={{ backgroundColor: shade || "#e2e8f0" }} // 提取商品底色作为占位色
             />
-            <span className="text-[10px] font-bold text-slate-400 tracking-wider">3CE 官方色号</span>
+            <span className="text-[10px] font-bold text-slate-400 tracking-wider">官方色号</span>
           </div>
         )}
         

@@ -8,3 +8,4 @@ openai
 dashscope
 thefuzz
 pypinyin
+requests

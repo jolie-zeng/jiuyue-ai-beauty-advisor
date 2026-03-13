@@ -175,15 +175,31 @@ def get_best_shades(intent_dict, user_input, csv_path="lips_colors_match.csv"):
             copywriting = str(item.get('官方推荐话术', '（暂无官方推荐话术）'))
             hit_score = item['命中次数'] if item['AI兜底得分'] == 0 else "AI语义匹配"
             
+            img_url = str(item.get('image_url', ''))
+            if img_url == 'nan' or pd.isna(item.get('image_url')):
+                img_url = ""
+                
+            # 🚀 修复核心：从 df 提取时，彻底补齐遗漏的“昵称”、“价格”、“购买链接”！
+            chinese_name = str(item.get('昵称', ''))
+            if chinese_name == 'nan' or pd.isna(item.get('昵称')): chinese_name = ''
+            
+            price = item.get('价格', 270)
+            buy_link = str(item.get('购买链接', '#'))
+            if buy_link == 'nan' or pd.isna(item.get('购买链接')): buy_link = '#'
+            
             result_list.append({
                 "色号": shade_eng,
-                "系列": series_name,
+                "昵称": chinese_name,    # 👈 补装上车：中文昵称
+                "产品系列": series_name,     # 👈 补装上车：产品系列
+                "价格": price,           # 👈 补装上车：商品价格
+                "购买链接": buy_link,     # 👈 补装上车：购买链接
                 "是否新品": is_new,
                 "命中状态": hit_score,
-                "官方话术": copywriting
+                "官方话术": copywriting,
+                "image_url": img_url     
             })
             
-            print(f"🎯 选定 No.{index+1}: #{shade_eng} [{series_name}] (命中: {hit_score}, 新品: {is_new})")
+            print(f"🎯 选定 No.{index+1}: #{shade_eng} [{series_name}] (图片: {'✅' if img_url else '❌'})")
 
         return result_list
 
@@ -199,3 +215,4 @@ if __name__ == "__main__":
     "场景标签": ["温柔","知性"] 
     }
     results = get_best_shades(mock_intent, user_query)
+    print("返回结果：", json.dumps(results, indent=2, ensure_ascii=False))

@@ -11,7 +11,7 @@ client = OpenAI(
     base_url="https://dashscope.aliyuncs.com/compatible-mode/v1"
 )
 
-def generate_final_response(user_input, recommended_shades, img_dir="standard_lips", output_dir="final_posters"):
+def generate_final_response(user_input, recommended_shades, output_dir="final_posters"):
     print("\n💄 第三车间启动：开始生成高情商话术与双拼海报...")
     
     if not recommended_shades or len(recommended_shades) < 2:
@@ -29,8 +29,8 @@ def generate_final_response(user_input, recommended_shades, img_dir="standard_li
     # ---------------------------------------------------------
     def format_shade_material(shade_info):
         """将冰冷的数据转化为大模型容易理解的素材格式"""
-        new_tag = "【NEW 新品】" if shade_info['是否新品'] else ""
-        return f"- {new_tag} #{shade_info['色号']} ({shade_info['系列']})：{shade_info['官方话术']}"
+        new_tag = "【NEW 新品】" if shade_info.get('是否新品') else ""
+        return f"- {new_tag} #{shade_info['色号']} ({shade_info.get('系列', '未知')})：{shade_info.get('官方话术', '')}"
 
     materials = f"{format_shade_material(shade1_info)}\n{format_shade_material(shade2_info)}"
     
@@ -76,105 +76,18 @@ def generate_final_response(user_input, recommended_shades, img_dir="standard_li
     # ---------------------------------------------------------
     print(f"\n🖼️ 正在呼叫底层拼图引擎生成海报: {shade1_name} vs {shade2_name} ...")
     
-    # 格式化文件名以便查找（我们在 auto_stitch_v2 里设计的标准化逻辑）
     s1_clean = shade1_name.strip().upper().replace(' ', '_').replace('-', '_')
     s2_clean = shade2_name.strip().upper().replace(' ', '_').replace('-', '_')
     poster_name = f"ADAPTIVE_POSTER_{s1_clean}_vs_{s2_clean}.jpg"
     poster_path = os.path.join(output_dir, poster_name)
     
     try:
-        # 直接调用你写的海报生成函数！
-        create_adaptive_poster(shade1_name, shade2_name, img_dir=img_dir, output_dir=output_dir)
+        # 🌟 修复核心：彻底移除 img_dir 参数，只保留需要的！
+        create_adaptive_poster(shade1_name, shade2_name, output_dir=output_dir)
         if os.path.exists(poster_path):
             print(f"✅ 海报合成大功告成！文件路径: {poster_path}")
         else:
-            print(f"⚠️ 拼图代码已执行，但似乎没有生成文件，请检查 standard_lips 里有没有这俩原图。")
-            poster_path = None
-    except Exception as e:
-        print(f"❌ 拼图引擎调用失败: {e}")
-        poster_path = None
-
-    # 将文本和图片路径一起打包返还！
-    return final_text, poster_path
-
-if __name__ == "__main__":
-    # 💡 模拟一下第二车间最终输送过来的 2 支色号数据
-    mock_user_input = "平时不怎么化妆，求推荐素颜能涂的。"
-    
-    mock_shades_from_workshop2 = [
-        {
-            "色号": "LAYDOWN",
-            "系列": "水雾唇露",
-            "是否新品": True, # 假设这是被强推的新品
-            "命中状态": "1",
-            "官方话术": "温柔知性的粉白色调，伪素颜神器，打造清透白开水妆容。"
-        },
-        {
-            "色号": "TAUPE",
-            "系列": "丝绒唇釉",
-            "是否新品": False,
-            "命中状态": "1",
-            "官方话术": "铁锈红里参着土棕色调，温暖醇厚的颜色，美到犯规，这会是您化妆包里的主角噢。"
-        }
-    ]
-    
-    # 执行第三车间！
-    text, img = generate_final_response(mock_user_input, mock_shades_from_workshop2)
-
-    # --- 请将这段代码追加到 response_generator.py 的最下方 ---
-
-def generate_comparison_response(user_input, shade1_info, shade2_info, img_dir="standard_lips", output_dir="final_posters"):
-    print("\n⚖️ 第三车间(对比模式)启动：开始生成客观对比评测与双拼海报...")
-    
-    shade1_name = shade1_info['色号']
-    shade2_name = shade2_info['色号']
-    
-    materials = f"""
-    - #{shade1_name} ({shade1_info.get('系列', '未知')}): {shade1_info.get('官方话术', '')}
-    - #{shade2_name} ({shade2_info.get('系列', '未知')}): {shade2_info.get('官方话术', '')}
-    """
-    
-    system_prompt = f"""
-    你是一个拥有极高审美、极具亲和力的美妆品牌金牌客服。
-    用户正在纠结两支色号，她的原话是："{user_input}"
-    
-    请根据以下两支色号的【官方档案】，为她做一个客观、专业的对比评测，并直接回答她的疑问（例如谁更显白、谁适合上班等）：
-    {materials}
-    
-    【你的绝对底线与规则】：
-    1. 【字数红线】：总字数严格控制在 120 字以内！
-    2. 【排版要求】：清晰分段，可以直接采用以下结构：
-       姐妹，这两支都是绝美神仙色，区别主要在于：
-       ✨ #{shade1_name}：(提炼它的核心氛围/卖点)
-       💄 #{shade2_name}：(提炼它的核心氛围/卖点)
-       💡 选购建议：(结合用户的语境给出最终建议)
-    3. 结尾用极短的一句话引导看图即可（如：“为您做了直观的对比图👇”）。
-    4. 绝不能瞎编官方档案里没有的质地或功效！
-    """
-
-    try:
-        print("🧠 大模型正在撰写对比评测...")
-        response = client.chat.completions.create(
-            model="qwen-plus",
-            messages=[{"role": "system", "content": system_prompt}]
-        )
-        final_text = response.choices[0].message.content
-        print("\n💬 最终生成话术：\n", final_text)
-    except Exception as e:
-        print(f"❌ 话术生成失败: {e}")
-        final_text = "这是为您生成的色号对比，请参考下方的图片哦～👇"
-
-    # --- 呼叫底层拼图引擎生成海报 ---
-    print(f"\n🖼️ 正在呼叫底层拼图引擎生成海报: {shade1_name} vs {shade2_name} ...")
-    
-    s1_clean = shade1_name.strip().upper().replace(' ', '_').replace('-', '_')
-    s2_clean = shade2_name.strip().upper().replace(' ', '_').replace('-', '_')
-    poster_name = f"ADAPTIVE_POSTER_{s1_clean}_vs_{s2_clean}.jpg"
-    poster_path = os.path.join(output_dir, poster_name)
-    
-    try:
-        create_adaptive_poster(shade1_name, shade2_name, img_dir=img_dir, output_dir=output_dir)
-        if not os.path.exists(poster_path):
+            print(f"⚠️ 拼图代码已执行，但似乎没有生成文件。")
             poster_path = None
     except Exception as e:
         print(f"❌ 拼图引擎调用失败: {e}")
@@ -182,9 +95,7 @@ def generate_comparison_response(user_input, shade1_info, shade2_info, img_dir="
 
     return final_text, poster_path
 
-    # --- 请将这段代码追加到 response_generator.py 的最下方 ---
-
-def generate_comparison_response(user_input, shade1_info, shade2_info, img_dir="standard_lips", output_dir="final_posters"):
+def generate_comparison_response(user_input, shade1_info, shade2_info, output_dir="final_posters"):
     print("\n⚖️ 第三车间(对比模式)启动：开始生成客观对比评测与双拼海报...")
     
     shade1_name = shade1_info['色号']
@@ -238,7 +149,8 @@ def generate_comparison_response(user_input, shade1_info, shade2_info, img_dir="
     poster_path = os.path.join(output_dir, poster_name)
     
     try:
-        create_adaptive_poster(shade1_name, shade2_name, img_dir=img_dir, output_dir=output_dir)
+        # 🌟 修复核心：彻底移除 img_dir 参数！
+        create_adaptive_poster(shade1_name, shade2_name, output_dir=output_dir)
         if not os.path.exists(poster_path):
             poster_path = None
     except Exception as e:

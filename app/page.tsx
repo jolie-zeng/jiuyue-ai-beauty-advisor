@@ -18,7 +18,7 @@ export default function Home() {
   const [realData, setRealData] = useState<any | null>(null)
   const [errorMsg, setErrorMsg] = useState("")
 
-  // 🚀 这里就是刚才丢失的核心“点火引擎”
+  // 🚀 核心“点火引擎”
   const triggerWorkflow = useCallback(
     async (query: string, childInviteCode?: string) => {
       if (isProcessing) return
@@ -33,24 +33,25 @@ export default function Home() {
       setIsProcessing(true)
       setRealData(null)
       
-      // 极其关键的一步：触发这行，左侧气泡才会出来，右侧面板才会开始发光！
+      // 触发这行，左侧气泡出来，右侧面板发光！
       setStep(1)
-
+      
       try {
-        const response = await fetch("https://jiuyue-ai-beauty-advisor.onrender.com/chat", {
+        const response = await fetch("http://127.0.0.1:8000/chat", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
           body: JSON.stringify({ 
-            message: query, 
-            invite_code: childInviteCode
+            query: query,             // 👈 核心修复 1：把 message 改成了 query，对接后端！
+            invite_code: childInviteCode // 👈 核心修复 2：确保密码被完整打包发送
           }),
         })
 
         const data = await response.json()
         console.log("后端返回数据:", data)
 
+        // 🌟 拦截后端的错误信息并弹窗
         if (data.error) {
           setErrorMsg(`❌ ${data.error}`)
           setIsProcessing(false)
@@ -81,7 +82,7 @@ export default function Home() {
   return (
     <div className="h-screen w-screen overflow-hidden flex flex-col bg-[#08080c] text-white">
       
-      {/* 🚀 顶层全局导航栏 (面试官视角的利器) */}
+      {/* 🚀 顶层全局导航栏 */}
       <header className="h-14 border-b border-white/10 bg-black/50 backdrop-blur-md flex items-center justify-between px-6 z-50">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 rounded bg-rose-500 flex items-center justify-center font-bold">J</div>
@@ -116,7 +117,6 @@ export default function Home() {
         {/* 1. 战略蓝图页 */}
         {activeTab === "VISION" && (
           <div className="absolute inset-0 animate-in fade-in slide-in-from-bottom-4">
-            {/* 🚀 直接调用我们刚刚写好的高能组件 */}
             <VisionBlueprint />
           </div>
         )}
@@ -133,7 +133,7 @@ export default function Home() {
               />
               {/* 报错小弹窗 */}
               {errorMsg && (
-                <div className="absolute bottom-20 left-6 z-50 px-3 py-1.5 text-xs text-red-400 bg-red-950/60 border border-red-900/50 rounded-md shadow-lg backdrop-blur-md">
+                <div className="absolute bottom-20 left-6 z-50 px-4 py-2 text-sm font-bold text-red-400 bg-red-950/80 border border-red-900/50 rounded-lg shadow-2xl backdrop-blur-md">
                   {errorMsg}
                 </div>
               )}
@@ -144,7 +144,7 @@ export default function Home() {
           </div>
         )}
 
-        {/* 3. B端数据看板页 (接入了刚才写的 BEndDashboard) */}
+        {/* 3. B端数据看板页 */}
         {activeTab === "B_END" && (
           <div className="absolute inset-0">
             <BEndDashboard />

@@ -7,6 +7,10 @@ import csv
 from datetime import datetime
 from dotenv import load_dotenv
 from pydantic import BaseModel
+import json
+import random
+import string
+from collections import Counter
 
 from llm_router import extract_user_intent
 from recommendation_engine import get_best_shades
@@ -50,31 +54,58 @@ except Exception as e:
     df_main = pd.DataFrame()
     total_sku_count = 0
 
-# 让你的识别器也动态读取当前决定的 CSV 路径
 recognizer = ShadeRecognizer(csv_path=CSV_PATH)
 
-# 模块零：PLG 门禁 - 全局配额池
-global_quota = {
-    "INVITE-ALPHA": {"limit": 10, "used": 0},
-    "INVITE-BETA": {"limit": 10, "used": 0},
-    "INVITE-GAMMA": {"limit": 10, "used": 0},
-    "ADMIN-JOLIE": {"limit": 100, "used": 0},
-}
+# ==========================================
+# 🌟 微型数据库设置 (取代了原本的 global_quota)
+# ==========================================
+CODES_FILE = "invite_codes.json"
 
+def get_codes():
+    """读取数据库，如果没有或者缺少管理员账号，自动补全"""
+    if not os.path.exists(CODES_FILE):
+        # 如果连文件都没有，直接初始化
+        initial_codes = {"ADMIN999": 100, "JIUYUE2026": 10}
+        save_codes(initial_codes)
+        return initial_codes
+        
+    with open(CODES_FILE, "r", encoding="utf-8") as f:
+        codes = json.load(f)
+        
+    # 🌟 终极防弹衣：如果读到了旧账本，且里面没有 ADMIN999，强制给它补发 100 次额度！
+    if "ADMIN999" not in codes:
+        codes["ADMIN999"] = 100
+        save_codes(codes) # 把补发后的新账本重新保存
+        
+    return codes
+
+def save_codes(codes):
+    """保存剩余次数到本地硬盘"""
+    with open(CODES_FILE, "w", encoding="utf-8") as f:
+        json.dump(codes, f, ensure_ascii=False, indent=2)
+
+# ==========================================
+# 🚀 唯一且核心的聊天接口
+# ==========================================
 @app.post("/chat")
 async def chat_endpoint(request: Request):
     data = await request.json()
-    user_input = data.get("message", "")
+    
+    # 兼容前端发来的字段，防抖
+    user_input = data.get("query", "") or data.get("message", "")
     print(f"\n📥 收到请求: {user_input}")
 
-    # === 模块零：PLG 门禁 ===
-    invite_code = data.get("invite_code", "") or data.get("inviteCode", "")
-    quota_info = global_quota.get(invite_code)
-    if not quota_info or quota_info["used"] >= quota_info["limit"]:
-        return {"error": "邀请码无效或额度耗尽"}
+    # === 模块零：JSON 数据库门禁拦截 ===
+    invite_code = data.get("invite_code", "").strip().upper() 
+    codes = get_codes()
+    
+    if invite_code not in codes:
+        return {"error": f"测试码无效！找不到 {invite_code}"}
+    if codes[invite_code] <= 0:
+        return {"error": "该测试码额度已耗尽，请联系管理员获取新码！"}
 
     # ==========================================
-    # 初始化兜底的安全返回数据格式（保证前端绝不报错）
+    # 初始化兜底的安全返回数据格式
     # ==========================================
     response_data = {
         "workshop1": {
@@ -96,7 +127,7 @@ async def chat_endpoint(request: Request):
         }
     }
 
-    # === 第一车间 ===
+    # === 第一车间：意图识别 ===
     intent_dict = extract_user_intent(user_input)
     if not intent_dict:
         return response_data
@@ -109,19 +140,16 @@ async def chat_endpoint(request: Request):
         "track": "🔵 场景B：色号对比" if intent_type == '对比' else "🔴 场景A：颜色推荐"
     }
 
-    # 为 CSV 埋点准备原始词与最终锁定色号
+    # 为 CSV 埋点准备原始词
     raw_terms = " / ".join(intent_dict.get("提及色号", [])) or intent_dict.get("产品词", "")
     final_shades_str = ""
-
-   # === 路由分发 ===
     poster_path = None
     official_pitch = "暂未提取到官方推荐话术"  
-    safe_raw_terms = "未提取到"  # 🚀 新增：在这里初始化要写入 CSV 的标签字段
+    safe_raw_terms = "未提取到"  
 
+    # === 路由分发 (对比 vs 推荐) ===
     if intent_type == '对比':
-        # 🚀 修复点 1：对比意图下，抓取【提及色号】
         safe_raw_terms = " / ".join(intent_dict.get("提及色号", [])) or intent_dict.get("产品词", "未提取到")
-        
         mentioned_shades = intent_dict.get('提及色号', [])
         official_shade1 = recognizer.extract_shade(mentioned_shades[0]) if len(mentioned_shades) > 0 else "未知色号"
         official_shade2 = recognizer.extract_shade(mentioned_shades[1]) if len(mentioned_shades) > 1 else "未知色号"
@@ -144,8 +172,16 @@ async def chat_endpoint(request: Request):
         
         official_pitch = f"✨ #{official_shade1}：{pitch1}\n💄 #{official_shade2}：{pitch2}"
 
-        shade1_info = {"色号": str(official_shade1), "系列": "对比系", "官方推荐话术": pitch1}
-        shade2_info = {"色号": str(official_shade2), "系列": "对比系", "官方推荐话术": pitch2}
+        # 🚀 读取对应的 image_url 给前端
+        img_url1 = str(df_main[df_main['英文色号'] == official_shade1]['image_url'].values[0]) if (official_shade1 in df_main['英文色号'].values and 'image_url' in df_main.columns) else ""
+        img_url2 = str(df_main[df_main['英文色号'] == official_shade2]['image_url'].values[0]) if (official_shade2 in df_main['英文色号'].values and 'image_url' in df_main.columns) else ""
+
+        # 🚀 新增：从表格里把“系列”也抓出来
+        series1 = df_main[df_main['英文色号'] == official_shade1]['产品系列'].values[0] if (official_shade1 in df_main['英文色号'].values and '产品系列' in df_main.columns) else "经典系列"
+        series2 = df_main[df_main['英文色号'] == official_shade2]['产品系列'].values[0] if (official_shade2 in df_main['英文色号'].values and '产品系列' in df_main.columns) else "经典系列"
+
+        shade1_info = {"色号": str(official_shade1), "产品系列": "对比系", "官方推荐话术": pitch1}
+        shade2_info = {"色号": str(official_shade2), "产品系列": "对比系", "官方推荐话术": pitch2}
         final_text, poster_path = generate_comparison_response(user_input, shade1_info, shade2_info)
 
         response_data["workshop2"]["filtered_stock"] = "已跳过物理拦截"
@@ -155,14 +191,14 @@ async def chat_endpoint(request: Request):
         ]
         response_data["workshop3"]["promoted"] = "对比模式无提权"
         
+        # 🚀 修复：把 series 字段正式打包发给前端
         response_data["workshop3"]["final_recommendations"] = [
-            {"name_en": f"#{official_shade1}", "name_cn": str(cn1), "price": str(price1), "buy_link": str(link1), "is_new": bool(is_new1 == True or str(is_new1) == '是')},
-            {"name_en": f"#{official_shade2}", "name_cn": str(cn2), "price": str(price2), "buy_link": str(link2), "is_new": bool(is_new2 == True or str(is_new2) == '是')}
+            {"name_en": f"#{official_shade1}", "name_cn": str(cn1), "series": str(series1), "price": str(price1), "buy_link": str(link1), "is_new": bool(is_new1 == True or str(is_new1) == '是'), "image_url": img_url1 if img_url1 != 'nan' else ""},
+            {"name_en": f"#{official_shade2}", "name_cn": str(cn2), "series": str(series2), "price": str(price2), "buy_link": str(link2), "is_new": bool(is_new2 == True or str(is_new2) == '是'), "image_url": img_url2 if img_url2 != 'nan' else ""}
         ]
         response_data["workshop3"]["reply_text"] = final_text
 
     else:
-        # 🚀 修复点 2：推荐意图下，优先抓取【场景标签】同步到前端大盘
         scene_tags = intent_dict.get("场景标签", [])
         if scene_tags:
             safe_raw_terms = " / ".join(scene_tags)
@@ -174,7 +210,6 @@ async def chat_endpoint(request: Request):
         top2 = recommended_shades[:2] if recommended_shades else []
 
         if top2:
-            # 🚀 修复点 3：拿着推荐出来的色号，回溯主知识库 df_main，强制把官方话术揪出来！
             official_pitch_lines = []
             for s in top2:
                 shade_code = s.get('色号')
@@ -190,25 +225,32 @@ async def chat_endpoint(request: Request):
             response_data["workshop2"]["top_matches"] = [{"name": f"#{s['色号']}", "score": 98 if i==0 else 85} for i, s in enumerate(top2)]
             response_data["workshop3"]["promoted"] = str(top2[0]['色号']) if top2[0].get('是否新品') else "常规召回"
             
+            # 🚀 修复：精准区分 name_cn(昵称) 和 series(系列)
             response_data["workshop3"]["final_recommendations"] = [
                 {
                     "name_en": f"#{s['色号']}", 
-                    "name_cn": str(s.get('系列', '')), 
+                    "name_cn": str(s.get('昵称', '暂无昵称')), # 🚀 修改为读取昵称
+                    "series": str(s.get('产品系列', '经典系列')),   # 🚀 新增系列字段
                     "price": str(s.get('价格', 270)), 
                     "buy_link": str(s.get('购买链接', '#')), 
-                    "is_new": bool(s.get('是否新品') == True or str(s.get('是否新品')).strip() == '是')
+                    "is_new": bool(s.get('是否新品') == True or str(s.get('是否新品')).strip() == '是'),
+                    "image_url": s.get('image_url', '') 
                 } for s in top2
             ]
             response_data["workshop3"]["reply_text"] = final_text
             final_shades_str = " / ".join(str(s["色号"]) for s in top2)
 
-    # 紧接着是原有的 poster_path 和写入 CSV 逻辑
-
     if poster_path and os.path.exists(poster_path):
         filename = os.path.basename(poster_path)
-        response_data["workshop3"]["poster_url"] = f"http://localhost:8000/posters/{filename}"
+        
+        # 🚀 新增：从环境变量读取当前地址，如果没有配置，则默认使用 localhost
+        # 这样在本地跑不会报错，在线上跑也能动态替换
+        base_url = os.environ.get("API_BASE_URL", "http://localhost:8000")
+        
+        # 🚀 修改：用动态的 {base_url} 拼接海报的完整链接
+        response_data["workshop3"]["poster_url"] = f"{base_url}/posters/{filename}"
+
     # ==========================================
-    # # ==========================================
     # 终极闭环：带 RLHF 反哺的隐形埋点
     # ==========================================
     try:
@@ -222,7 +264,6 @@ async def chat_endpoint(request: Request):
         with open(history_path, mode="a", newline="", encoding="utf-8-sig") as f:
             writer = csv.writer(f)
             if not file_exists:
-                # 🚀 新增一列：官方推荐话术
                 writer.writerow(["调用时间", "用户原话", "意图", "提取的原始词", "最终锁定的色号", "官方推荐话术", "机器人的回复", "人工反馈", "消耗的邀请码"])
             
             writer.writerow([
@@ -231,60 +272,53 @@ async def chat_endpoint(request: Request):
                 intent_type, 
                 safe_raw_terms, 
                 safe_final_shades, 
-                official_pitch,  # 🚀 把提取到的官方话术写进 CSV 对应位置
+                official_pitch,  
                 ai_reply,
                 "未评级", 
                 invite_code
             ])
             print("✅ 隐形埋点写入成功！")
-            
     except Exception as e:
         print(f"⚠️ 写入埋点失败: {e}")
 
-    quota_info["used"] += 1
-    response_data["quota_left"] = quota_info["limit"] - quota_info["used"]
+    # ==========================================
+    # 🌟 业务全部成功跑完，正式扣费并返回！
+    # ==========================================
+    codes[invite_code] -= 1
+    save_codes(codes)
+    
+    response_data["quota_left"] = codes[invite_code]
 
     return response_data
 
-import random
+# ==========================================
+# 其他路由接口 (随机词、Dashboard)
+# ==========================================
 
 @app.get("/api/random-prompts")
 async def get_random_prompts():
-    """动态读取 CSV，生成带有真实商品数据和错别字的随机测试题（严格剔除已断货商品）"""
+    """动态读取 CSV，生成带有真实商品数据和错别字的随机测试题"""
     try:
         if df_main.empty:
             return {"prompts": ["早泥豆沙和奶油砖橘哪个显白？", "适合早八通勤的口红推荐", "推荐一支适合黄皮的唇釉"]}
 
-        # =====================================================================
-        # 🚀 核心新增：数据清洗，严格拦截并剔除【已断货=1】的商品
-        # =====================================================================
         if '已断货' in df_main.columns:
-            # 兼容处理：防患 CSV 里的 1 被读成数字、字符串 '1' 或是 '1.0'
             df_active = df_main[~df_main['已断货'].astype(str).isin(['1', '1.0'])]
         else:
             df_active = df_main
             
-        # 如果过滤完发现全断货了（极端情况兜底）
         if df_active.empty:
             return {"prompts": ["早泥豆沙和奶油砖橘哪个好？", "适合伪素颜的唇釉", "黄黑皮显白色号推荐"]}
-
-        # =====================================================================
-        # 接下来所有的提取，都基于干净的、全部在售的 df_active 数据集
-        # =====================================================================
         
-        # 1. 提取所有不为空的场景标签
         all_scenes = []
         if '场景标签' in df_active.columns:
             for tags in df_active['场景标签'].dropna():
                 all_scenes.extend([t.strip() for t in str(tags).split('/') if t.strip()])
-        all_scenes = list(set(all_scenes)) # 去重
+        all_scenes = list(set(all_scenes))
 
-        # 2. 提取在售色号信息
         shades_data = df_active.to_dict(orient="records")
-        
         prompts = []
 
-        # === 生成 1 题：场景推荐 ===
         if all_scenes:
             scene = random.choice(all_scenes)
             scene_templates = [
@@ -294,29 +328,23 @@ async def get_random_prompts():
             ]
             prompts.append(random.choice(scene_templates))
 
-        # === 生成 2 题：色号对比 (混入错别字和黑话) ===
         if len(shades_data) >= 2:
-            # 随机抽两个不同的在售商品
             sample_shades = random.sample(shades_data, 2)
             shade1, shade2 = sample_shades[0], sample_shades[1]
-            
-            # 准备它们的各种叫法（如果有的字段为空，get() 会返回空字符串）
             name1_en = str(shade1.get('英文色号', ''))
             name1_cn = str(shade1.get('昵称', '')) or str(shade1.get('包装名称', ''))
             name2_en = str(shade2.get('英文色号', ''))
             name2_cn = str(shade2.get('昵称', '')) or str(shade2.get('包装名称', ''))
             
-            # 故意制造错别字的黑魔法
             def make_typo(name):
                 if not name or name.lower() == 'nan': return ""
                 typos = {"枣": "早", "泥": "泥巴", "橘": "桔", "红": "宏", "粉": "分"}
                 typo_name = name
                 for k, v in typos.items():
-                    if k in typo_name and random.random() > 0.5: # 50%概率产生错别字
+                    if k in typo_name and random.random() > 0.5:
                         typo_name = typo_name.replace(k, v)
                 return typo_name
 
-            # 组装 C 端对比提问
             comp_templates = [
                 f"{make_typo(name1_cn)} 和 {make_typo(name2_cn)} 哪个更显白？",
                 f"{name1_en} 和 {name2_cn} 我黄皮买哪个好？",
@@ -324,11 +352,9 @@ async def get_random_prompts():
             ]
             prompts.extend(random.sample(comp_templates, 2))
 
-        # 如果数据不够，用兜底数据补齐 3 个
         while len(prompts) < 3:
             prompts.append("黄黑皮适合什么色号？")
 
-        # 打乱顺序返回
         random.shuffle(prompts)
         return {"prompts": prompts[:3]}
 
@@ -336,7 +362,6 @@ async def get_random_prompts():
         print(f"⚠️ 动态提示词生成失败: {e}")
         return {"prompts": ["系统推荐引擎测试中", "请对比两款产品", "场景推荐链路测试"]}
 
-from collections import Counter
 
 @app.get("/api/dashboard")
 async def get_dashboard_data():
@@ -349,18 +374,15 @@ async def get_dashboard_data():
         df = pd.read_csv(history_path, encoding="utf-8-sig").fillna("无")
         total_calls = len(df)
 
-        # 🚀 兼容防崩处理：如果 CSV 里没这列，自动填上
         if "官方推荐话术" not in df.columns:
             df["官方推荐话术"] = "缺失基准数据"
 
-        # 1. 意图漏斗
         intent_counts = df["意图"].value_counts().to_dict()
         intent_distribution = [
             {"name": "场景A：颜色推荐", "value": intent_counts.get("推荐", 0), "color": "bg-rose-500"},
             {"name": "场景B：色号对比", "value": intent_counts.get("对比", 0), "color": "bg-cyan-500"}
         ]
 
-        # 2. 词云
         words = []
         for terms in df["提取的原始词"]:
             for word in str(terms).split("/"):
@@ -371,7 +393,6 @@ async def get_dashboard_data():
         max_count = word_counts[0][1] if word_counts else 1
         word_cloud = [{"text": w, "count": c, "size": 12 + (c / max_count) * 20} for w, c in word_counts]
 
-        # 3. 🚀 全量色号排行榜 (按场景拆分)
         rec_list = []
         comp_list = []
         for _, row in df.iterrows():
@@ -384,25 +405,22 @@ async def get_dashboard_data():
                         if intent == "推荐": rec_list.append(s)
                         else: comp_list.append(s)
         
-        # 返回按次数从高到低排序的全量数据
         shade_ranking_rec = [{"name": w, "count": c} for w, c in Counter(rec_list).most_common()]
         shade_ranking_comp = [{"name": w, "count": c} for w, c in Counter(comp_list).most_common()]
 
-        # 4. 提取原声问答 (扩大到 100 条)
         recent_records = df.tail(100).iloc[::-1].to_dict(orient="records")
 
         return {
             "total_calls": total_calls,
             "intent_distribution": intent_distribution,
             "word_cloud": word_cloud,
-            "shade_ranking_rec": shade_ranking_rec, # 推荐榜单
-            "shade_ranking_comp": shade_ranking_comp, # 对比榜单
+            "shade_ranking_rec": shade_ranking_rec, 
+            "shade_ranking_comp": shade_ranking_comp, 
             "recent_records": recent_records
         }
     except Exception as e:
         return {"error": str(e)}
 
-# 🚀 接收大盘传来的人工打分
 class FeedbackRequest(BaseModel):
     timestamp: str
     feedback: str
@@ -412,9 +430,23 @@ async def submit_feedback(req: FeedbackRequest):
     history_path = "history_log.csv"
     try:
         df = pd.read_csv(history_path, encoding="utf-8-sig")
-        # 匹配时间戳，修改打标状态
         df.loc[df['调用时间'] == req.timestamp, '人工反馈'] = req.feedback
         df.to_csv(history_path, index=False, encoding="utf-8-sig")
         return {"success": True}
     except Exception as e:
         return {"error": str(e)}
+
+# 🌟 后台接口 1：查看所有密码
+@app.get("/api/admin/codes")
+async def get_all_codes():
+    return get_codes()
+
+# 🌟 后台接口 2：生成新密码
+@app.post("/api/admin/generate")
+async def generate_new_codes():
+    codes = get_codes()
+    for _ in range(20):
+        new_code = ''.join(random.choices(string.ascii_uppercase + string.digits, k=6))
+        codes[new_code] = 10
+    save_codes(codes)
+    return {"message": "成功生成 20 个新密码！", "codes": codes}

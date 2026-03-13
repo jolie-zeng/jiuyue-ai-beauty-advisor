@@ -18,10 +18,16 @@ export function BEndDashboard() {
   
   const dateInputRef = useRef<HTMLInputElement>(null)
 
+  // 🚀 新增：智能判断当前环境，动态切换 API 基础地址
+  const API_BASE_URL = process.env.NODE_ENV === 'production' 
+    ? 'https://jiuyue-ai-beauty-advisor.onrender.com' 
+    : 'http://localhost:8000';
+
   const fetchDashboardData = async () => {
     setLoading(true)
     try {
-      const res = await fetch(`http://localhost:8000/api/dashboard?t=${Date.now()}`, { cache: 'no-store' })
+      // 🚀 修改：用 ${API_BASE_URL} 替换写死的 localhost
+      const res = await fetch(`${API_BASE_URL}/api/dashboard?t=${Date.now()}`, { cache: 'no-store' })
       const json = await res.json()
       setData(json)
     } catch (error) {
@@ -33,7 +39,8 @@ export function BEndDashboard() {
 
   const handleFeedback = async (timestamp: string, feedbackStatus: string) => {
     try {
-      await fetch("http://localhost:8000/api/feedback", {
+      // 🚀 修改：用 ${API_BASE_URL} 替换写死的 localhost
+      await fetch(`${API_BASE_URL}/api/feedback`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ timestamp: timestamp, feedback: feedbackStatus })
@@ -134,7 +141,7 @@ export function BEndDashboard() {
             <Target className="w-4 h-4 text-indigo-500" /> 意图分流漏斗
           </h3>
           <div className="space-y-4">
-            {intentData.map((item: any, idx: number) => {
+          {intentData.map((item: any, idx: number) => {
               const percentage = totalCalls === 0 ? 0 : Math.round((item.value / totalCalls) * 100)
               // 🚀 核心修复：前端显式声明颜色，防止 Tailwind 引擎误删 CSS 样式
               const barColor = item.name.includes("推荐") ? "bg-rose-500" : "bg-cyan-500"
