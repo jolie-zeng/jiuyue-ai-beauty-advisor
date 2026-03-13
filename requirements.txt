@@ -9,3 +9,5 @@ dashscope
 thefuzz
 pypinyin
 requests
+SQLAlchemy==2.0.28
+psycopg2-binary==2.9.9
