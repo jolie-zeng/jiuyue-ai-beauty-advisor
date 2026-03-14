@@ -34,7 +34,24 @@
 > 本项目是一个面向零售电商的 **SaaS 级智能导购解决方案**。通过独创的「大模型意图路由 + 物理规则校验」双轨制架构，彻底解决传统大模型在电商客服中“幻觉推荐、答非所问”的致命痛点。
 
 ---
+<br/>
 
+<div align="center">
+  <table>
+    <tr>
+      <td width="33.3%"><img src="public/C端高情商导购.png" alt="C端导购效果"/></td>
+      <td width="33.3%"><img src="public/三车间推理引擎.png" alt="三车间推理引擎"/></td>
+      <td width="33.3%"><img src="public/B端商业数据大盘.png" alt="B端数据大盘"/></td>
+    </tr>
+    <tr>
+      <td align="center"><b>💬 C端：高情商导购体验</b><br/><sub>精准解码野生黑话，智能推荐高定色卡</sub></td>
+      <td align="center"><b>🧠 三车间：核心推理引擎</b><br/><sub>可视化大模型思维链 (CoT) 与知识检索过程</sub></td>
+      <td align="center"><b>📊 B端：RLHF 标注大盘</b><br/><sub>实时漏斗监控、原声词云与模型反哺台</sub></td>
+    </tr>
+  </table>
+</div>
+
+<br/>
 ## 👑 核心架构大纲：三车间双轨全链路
 本项目采用创新的“流水线车间”架构，将大模型意图识别、推荐算法漏斗与前后端渲染无缝解耦，构建了一个支持 C端沉浸式导购与 B端数据回流的完整商业闭环。
 
