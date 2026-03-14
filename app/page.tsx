@@ -10,6 +10,10 @@ import { VisionBlueprint } from "@/components/vision-blueprint"
 export type SystemStep = 0 | 1 | 2 | 3 | 4 | 5
 type ActiveTab = "VISION" | "C_END" | "B_END"
 
+const API_BASE_URL = process.env.NODE_ENV === 'production' 
+  ? 'https://jiuyue-ai-beauty-advisor.onrender.com' 
+  : 'http://localhost:8000';
+  
 export default function Home() {
   const [activeTab, setActiveTab] = useState<ActiveTab>("C_END")
   
@@ -37,7 +41,7 @@ export default function Home() {
       setStep(1)
       
       try {
-        const response = await fetch("http://127.0.0.1:8000/chat", {
+        const response = await fetch(`${API_BASE_URL}/chat`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
