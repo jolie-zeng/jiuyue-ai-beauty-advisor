@@ -281,7 +281,15 @@ async def chat_endpoint(request: Request):
     # ==========================================
     # 终极闭环：云端/本地 隐形埋点
     # ==========================================
+    # ==========================================
+    # 终极闭环：云端/本地 隐形埋点
+    # ==========================================
     try:
+        # 🚀 补回这三行：从 response_data 中提取最终结果
+        recs = response_data.get("workshop3", {}).get("final_recommendations", [])
+        safe_final_shades = " / ".join([str(r.get("name_en", "")) for r in recs]) if recs else "无推荐"
+        ai_reply = response_data.get("workshop3", {}).get("reply_text", "")
+
         new_row = pd.DataFrame([{
             "调用时间": datetime.now().isoformat(), 
             "用户原话": user_input, 
@@ -295,11 +303,9 @@ async def chat_endpoint(request: Request):
         }])
         
         if engine:
-            # 🚀 云端模式：极速插入一行数据，自动建表！
             new_row.to_sql('history_log', engine, if_exists='append', index=False)
             print("✅ 云数据库埋点写入成功！")
         else:
-            # 本地模式
             history_path = "history_log.csv"
             file_exists = os.path.exists(history_path)
             new_row.to_csv(history_path, mode="a", header=not file_exists, index=False, encoding="utf-8-sig")
